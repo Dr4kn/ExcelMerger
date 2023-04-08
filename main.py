@@ -1,25 +1,48 @@
+import pandas
 import pandas as pd
 
 
-def merge_excel_files(old_file, new_file):
+# Separate function to easily comment out the calling code
+def insert_columns(merge_into: pandas.DataFrame, merge_from: pandas.DataFrame, at_index: int, array: [str]):
+    for item in array:
+        merge_into.insert(at_index, item, merge_from[item])
+        at_index += 1
+    return merge_into
+
+
+def merge_old_into_new(old_file: str, new_file: str):
     # Load the first Excel file into a pandas DataFrame, skipping the first row
-    df1 = pd.read_excel(old_file, skiprows=1)
+    merge_into = pd.read_excel(old_file, skiprows=1)
 
     # Load the second Excel file into a pandas DataFrame, skipping the first row
-    df2 = pd.read_excel(new_file)
+    new = pd.read_excel(new_file)
 
-    df1['X-nat Pseudonym'] = df1['X-nat Pseudonym'].str.split('_').str.get(0)
+    # Only get first part of the value
+    merge_into['X-nat Pseudonym'] = merge_into['X-nat Pseudonym'].str.split('_').str.get(0)
+
     # Convert "Datum MRT" column to datetime format with different date formats
-    df1['Datum MRT'] = pd.to_datetime(df1['Datum MRT'], dayfirst=True)
-    df2['Datum MRT'] = pd.to_datetime(df2['Datum MRT'], format='%m/%d/%Y')
+    iso8601 = '%Y-%m-%d'
+
+    # Date Format: DD/MM/YYYY
+    merge_into['Datum MRT'] = pd.to_datetime(merge_into['Datum MRT'], dayfirst=True).dt.strftime(iso8601)
+    # Date Format: MM.DD.YYYY
+    # the worst data format is used ...
+    new['Datum MRT'] = pd.to_datetime(new['Datum MRT'], format='%m/%d/%Y').dt.strftime(iso8601)
 
     # Merge the two DataFrames based on "X-nat Pseudonym" and "Datum MRT"
-    merged_df = pd.merge(df1, df2, on=['X-nat Pseudonym', 'Datum MRT'], how='left')
+    old = pd.merge(merge_into, new, on=['X-nat Pseudonym', 'Datum MRT'], how='left')
+
+    # Columns in new to insert into merge_into
+    columns_to_merge = ['scan_description', 'scan_id', 'experiment_id', 'Exclude->no whole body', 'comment informatics',
+                        'comment radiology']
+
+    # Insert merged data
+    old = insert_columns(new, old, 9, columns_to_merge)
 
     # Write the merged DataFrame to a new Excel file
-    merged_df.to_excel('merged.xlsx', index=False)
+    old.to_excel('merged.xlsx', index=False)
 
 
 if __name__ == '__main__':
-    merge_excel_files("old.xlsx", "new.xlsx")
+    merge_old_into_new("old.xlsx", "new.xlsx")
     print("done")
